@@ -1,6 +1,8 @@
 import streamlit as st
 import duckdb
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
 import tempfile
 import os
 
@@ -62,7 +64,7 @@ st.dataframe(df.head(10))
 # Statistiques générales
 st.header("Statistiques générales")
 
-# Utiliser DuckDB pour les statistiques de survie
+# Utiliser DuckDB pour les statistiques de santé mentale
 stats_generales = conn.execute("""
   SELECT 
         COUNT(*) as total_students,
@@ -82,3 +84,50 @@ col2.metric("Âge moyen", stats_generales["average_age"][0])
 col3.metric("Dépression", f"{stats_generales['pct_depression'][0]}%")
 col4.metric("Anxiété", f"{stats_generales['pct_anxiety'][0]}%")
 col5.metric("Panic attack", f"{stats_generales['pct_panic'][0]}%")
+
+
+# Création d'un graphique
+st.header("Carte de chaleur : santé mentale par cours (%)")
+
+# Récupérer les données depuis DuckDB avec pourcentages
+mental_health_par_cours = conn.execute("""
+    SELECT 
+        "What is your course?" as cours,
+        ROUND(100.0 * SUM(CASE WHEN "Do you have Depression?" = 'Yes' THEN 1 ELSE 0 END) / COUNT(*), 2) as pct_depression,
+        ROUND(100.0 * SUM(CASE WHEN "Do you have Anxiety?" = 'Yes' THEN 1 ELSE 0 END) / COUNT(*), 2) as pct_anxiety,
+        ROUND(100.0 * SUM(CASE WHEN "Do you have Panic attack?" = 'Yes' THEN 1 ELSE 0 END) / COUNT(*), 2) as pct_panic
+    FROM mental_health
+    GROUP BY "What is your course?"
+    ORDER BY cours
+""").fetchdf()
+
+# Transformer les données pour Plotly
+df_heatmap = mental_health_par_cours.melt(
+    id_vars=['cours'], 
+    value_vars=['pct_depression','pct_anxiety','pct_panic'],
+    var_name='Problème',
+    value_name='% étudiants'
+)
+
+# Remplacer les noms pour plus de clarté
+df_heatmap['Problème'] = df_heatmap['Problème'].replace({
+    'pct_depression': 'Dépression',
+    'pct_anxiety': 'Anxiété',
+    'pct_panic': 'Panic attack'
+})
+
+# Créer la heatmap
+fig = px.imshow(
+    df_heatmap.pivot(index='cours', columns='Problème', values='% étudiants'),
+    color_continuous_scale='Reds',
+    text_auto=True,
+    aspect="auto"  # ajuste la taille automatiquement
+)
+
+fig.update_layout(
+    xaxis_title='Problème',
+    yaxis_title='Cours',
+    yaxis=dict(tickangle=0)
+)
+
+st.plotly_chart(fig, use_container_width=True)
