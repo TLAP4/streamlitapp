@@ -207,3 +207,51 @@ fig_sexe.update_layout(
 )
 
 st.plotly_chart(fig_sexe, use_container_width=True)
+
+# 2️⃣ Recours aux soins parmi ceux qui ont un problème
+# -------------------------
+st.header("Parmi ceux qui ont un problème, combien ont cherché un traitement/spécialiste (%)")
+
+# Filtre : choisir le problème
+probleme_selection2 = st.selectbox(
+    "Sélectionner le problème à analyser :",
+    ["Dépression", "Anxiété", "Panic attack"],
+    key="graph2_probleme"
+)
+
+# Colonnes correspondantes
+col_map = {
+    "Dépression": "Do you have Depression?",
+    "Anxiété": "Do you have Anxiety?",
+    "Panic attack": "Do you have Panic attack?"
+}
+probleme_col = col_map[probleme_selection2]
+
+# Filtre optionnel : genre
+genres = df["Choose your gender"].unique()
+genre_selection2 = st.multiselect(
+    "Filtrer par genre :",
+    options=genres,
+    default=genres,
+    key="graph2_genre"
+)
+
+# Filtrer uniquement les étudiants avec le problème sélectionné
+df_traitement = df[(df[probleme_col]=="Yes") & (df["Choose your gender"].isin(genre_selection2))]
+
+# Calcul % Oui/Non traitement
+stats_traitement = df_traitement.groupby("Choose your gender")["Did you seek any specialist for a treatment?"]\
+    .value_counts(normalize=True).rename('%').mul(100).reset_index()
+
+# Graphique barres empilées
+fig_traitement = px.bar(
+    stats_traitement,
+    x="Choose your gender",
+    y="%",
+    color="Did you seek any specialist for a treatment?",
+    text=stats_traitement["%"].apply(lambda x: f"{round(x,1)}%"),
+    color_discrete_map={"Yes":"green","No":"gray"},
+    labels={"%":"% d’étudiants", "Choose your gender":"Genre", "Did you seek any specialist for a treatment?":"Traitement"}
+)
+fig_traitement.update_layout(barmode='stack')
+st.plotly_chart(fig_traitement, use_container_width=True)
